@@ -1,0 +1,25 @@
+# Зависимости
+node_modules/
+.npm-cache/
+
+# Секреты: настоящие настройки лежат только на сервере
+.env
+.env.*
+!.env.example
+livekit.yaml
+*.pem
+*.key
+
+# Живые данные: база, её WAL-файлы и загруженные файлы
+mycord.db
+mycord.db-shm
+mycord.db-wal
+mycord-backup-*.db
+uploads/
+
+# Сборки и мусор
+dist/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

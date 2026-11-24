@@ -1,0 +1,15 @@
+DeepFilterNet3 noise suppression (WASM)
+=====================================
+
+Engine: DeepFilterNet3 by Hendrik Schröter et al.
+  https://github.com/Rikorose/DeepFilterNet
+  License: MIT OR Apache-2.0
+
+Browser build and embedded model weights:
+  denoise-voice-clarity (npm) by rajan471
+  https://github.com/rajan471/denoise-voice-clarity
+  License: MIT (see LICENSE)
+
+The WASM file contains the DeepFilterNet3 weights; it is served from this
+server and processed entirely in the participant's browser. No audio leaves
+the device.

@@ -1,0 +1,8 @@
+* text=auto eol=lf
+
+# Бинарные файлы не трогаем при конвертации переводов строк
+*.wasm binary
+*.db binary
+*.ico binary
+*.png binary
+*.jpg binary
