@@ -670,7 +670,7 @@
         <div class="seg"><button type="button" id="chText" class="active">Текстовый</button><button type="button" id="chVoice">Голосовой</button></div>
       </div>
       <label class="togrow"><span>Защитить паролем</span><span class="switch"><input type="checkbox" id="chLocked"><i></i></span></label>
-      <input id="chPass" class="field" type="password" placeholder="Пароль канала (от 4 символов)" autocomplete="new-password" hidden>
+      <input id="chPass" class="field" type="password" placeholder="Пароль канала (от 8 символов)" autocomplete="new-password" hidden>
       <div id="chError"></div>
       <div class="picker-foot"><button id="chCancel" class="btn-ghost">Отмена</button><button id="chCreate" class="btn-primary">Создать</button></div>
     </div>
@@ -2848,7 +2848,7 @@
         const r = await askForm({
           title: "Пароль канала «" + ch.name + "»",
           text: ch.locked ? "После смены пароля все, кто сейчас в канале, будут из него выкинуты и должны будут ввести новый пароль." : "Пароль можно будет сменить или убрать позже. Вы заходите без пароля.",
-          fields: [{ key: "pw", label: "Пароль (от 4 символов)", type: "password" }],
+          fields: [{ key: "pw", label: "Пароль (от 8 символов)", type: "password" }],
           ok: "Сохранить",
           error,
         });
@@ -3128,7 +3128,7 @@
           h("button", { class: "btn-ghost abtn", text: "Сменить", onclick: async () => {
             let error = "";
             for (;;) {
-              const r = await askForm({ title: "Новый код приглашения", text: "Старый код перестанет работать для новых регистраций. Уже зарегистрированных это не затрагивает.", fields: [{ key: "code", label: "Код (от 4 символов)", value: st.invite }], ok: "Сохранить", error });
+              const r = await askForm({ title: "Новый код приглашения", text: "Старый код перестанет работать для новых регистраций. Уже зарегистрированных это не затрагивает.", fields: [{ key: "code", label: "Код (от 12 символов)", value: st.invite }], ok: "Сохранить", error });
               if (!r) return;
               const res = await call("admin:setinvite", r.code);
               if (!res.error) { st.invite = res.invite; code.textContent = res.invite; return; }

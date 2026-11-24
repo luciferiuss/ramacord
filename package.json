@@ -1,7 +1,7 @@
-{
+﻿{
   "name": "ramacord",
-  "version": "1.0.1",
-  "description": "Самостоятельно размещаемый чат с голосовыми каналами: Express, Socket.IO, LiveKit и SQLite",
+  "version": "1.1.0",
+  "description": "РЎР°РјРѕСЃС‚РѕСЏС‚РµР»СЊРЅРѕ СЂР°Р·РјРµС‰Р°РµРјС‹Р№ С‡Р°С‚ СЃ РіРѕР»РѕСЃРѕРІС‹РјРё РєР°РЅР°Р»Р°РјРё: Express, Socket.IO, LiveKit Рё SQLite",
   "main": "index.js",
   "type": "module",
   "scripts": {

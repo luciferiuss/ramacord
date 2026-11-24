@@ -64,6 +64,22 @@ db.exec(`
     action TEXT NOT NULL,
     details TEXT
   );
+  -- Загрузки: кто, когда и сколько байт — по ним считаются квоты
+  CREATE TABLE IF NOT EXISTS uploads_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    ts INTEGER NOT NULL,
+    bytes INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_uploads_log_ts ON uploads_log(ts);
+  CREATE INDEX IF NOT EXISTS idx_uploads_log_user ON uploads_log(user_id, ts);
+  -- Регистрации: адрес и время — чтобы ограничить массовое создание аккаунтов
+  CREATE TABLE IF NOT EXISTS reg_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip TEXT NOT NULL,
+    ts INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_reg_log_ts ON reg_log(ts);
 `);
 
 // Стартовые каналы создаём только при самом первом запуске,

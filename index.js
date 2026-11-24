@@ -337,6 +337,23 @@ const livekit = new RoomServiceClient(LIVEKIT_API_URL, LIVEKIT_API_KEY, LIVEKIT_
 const INVITE_CODE = process.env.INVITE_CODE || "";
 if (!INVITE_CODE) console.warn("ВНИМАНИЕ: INVITE_CODE не задан, регистрация открыта всем");
 
+// ===== Лимиты: загрузки, регистрации, пароли каналов =====
+// Всё можно переопределить переменными окружения, значения по умолчанию — для небольшого сервера
+const UPLOAD_PER_HOUR = Number(process.env.UPLOAD_PER_HOUR) || 30;       // файлов в час с одного аккаунта
+const UPLOAD_USER_MB = Number(process.env.UPLOAD_USER_MB) || 250;        // мегабайт за 24 часа на аккаунт
+const UPLOAD_TOTAL_MB = Number(process.env.UPLOAD_TOTAL_MB) || 2048;     // мегабайт за 24 часа на весь сервер
+const REG_LIMIT_IP = Number(process.env.REG_LIMIT_IP) || 3;              // аккаунтов с одного IP за 24 часа
+const REG_LIMIT_TOTAL = Number(process.env.REG_LIMIT_TOTAL) || 20;       // аккаунтов на сервер за 24 часа
+const MIN_CHANNEL_PASSWORD = 8;                                          // минимум для пароля канала
+const MIN_INVITE_CODE = 12;                                              // минимум для кода приглашения
+// LiveKit проверяет exp только при подключении и сам продлевает токен, пока участник в комнате.
+// Поэтому короткий срок не рвёт длинные звонки, но ограничивает окно, в которое выгнанный
+// человек может вернуться со сохранённым токеном: было 6 часов, стало 10 минут.
+const VOICE_TOKEN_TTL = process.env.VOICE_TOKEN_TTL || "10m";
+if (INVITE_CODE && INVITE_CODE.length < MIN_INVITE_CODE) {
+  console.warn(`ВНИМАНИЕ: INVITE_CODE короче ${MIN_INVITE_CODE} символов — его легко подобрать перебором`);
+}
+
 // В продакшене не стартуем с тестовыми ключами и открытой регистрацией
 if (process.env.NODE_ENV === "production") {
   const missing = ["LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "INVITE_CODE"].filter((k) => !process.env[k]);
@@ -542,15 +559,28 @@ app.use(
   })
 );
 
-// Не больше 30 загрузок в час на человека
-const uploadsLog = new Map();
-function uploadAllowed(userId) {
-  const now = Date.now();
-  const list = (uploadsLog.get(userId) || []).filter((t) => now - t < 3600e3);
-  if (list.length >= 30) return false;
-  list.push(now);
-  uploadsLog.set(userId, list);
-  return true;
+// Не больше 30 файлов в час и 250 МБ за сутки на аккаунт, 2 ГБ за сутки на весь сервер.
+// Счётчики лежат в базе, поэтому перезапуск сервера их не обнуляет
+function uploadCountAllowed(userId) {
+  const n = db
+    .prepare("SELECT COUNT(*) AS c FROM uploads_log WHERE user_id = ? AND ts >= ?")
+    .get(userId, Date.now() - 3600e3).c;
+  return n < UPLOAD_PER_HOUR;
+}
+
+function uploadBytesExceeded(userId, size) {
+  const since = Date.now() - 24 * 3600e3;
+  const mine = db
+    .prepare("SELECT COALESCE(SUM(bytes), 0) AS s FROM uploads_log WHERE user_id = ? AND ts >= ?")
+    .get(userId, since).s;
+  if (mine + size > UPLOAD_USER_MB * 1024 * 1024) {
+    return "Дневной лимит загрузок на аккаунт исчерпан. Попробуйте позже.";
+  }
+  const all = db.prepare("SELECT COALESCE(SUM(bytes), 0) AS s FROM uploads_log WHERE ts >= ?").get(since).s;
+  if (all + size > UPLOAD_TOTAL_MB * 1024 * 1024) {
+    return "На сервере закончилось место для загрузок. Попробуйте позже.";
+  }
+  return null;
 }
 
 const upload = multer({
@@ -565,14 +595,21 @@ const upload = multer({
       cb(null, randomUUID() + ext);
     },
   }),
-  limits: { fileSize: 25 * 1024 * 1024 },
+  limits: {
+    fileSize: 25 * 1024 * 1024,
+    files: 1,
+    parts: 20,
+    fields: 10,
+    fieldNameSize: 100,
+    fieldSize: 4096,
+  },
 });
 
 app.post("/upload", (req, res) => {
   const token = (req.headers.authorization || "").replace("Bearer ", "");
   const me = getSessionUser(token);
   if (!me) return res.status(401).json({ error: "Не авторизован" });
-  if (!uploadAllowed(me.id)) return res.status(429).json({ error: "Слишком много загрузок, попробуйте позже" });
+  if (!uploadCountAllowed(me.id)) return res.status(429).json({ error: "Слишком много загрузок, попробуйте позже" });
 
   upload.single("file")(req, res, (err) => {
     if (err) {
@@ -581,6 +618,13 @@ app.post("/upload", (req, res) => {
       });
     }
     if (!req.file) return res.status(400).json({ error: "Файл не выбран" });
+    // Размер знаем только после записи, поэтому превышение квоты проверяем здесь и файл убираем
+    const tooMuch = uploadBytesExceeded(me.id, req.file.size);
+    if (tooMuch) {
+      fs.rm(req.file.path, { force: true }, () => {});
+      return res.status(429).json({ error: tooMuch });
+    }
+    db.prepare("INSERT INTO uploads_log (user_id, ts, bytes) VALUES (?, ?, ?)").run(me.id, Date.now(), req.file.size);
     res.json({ url: "/uploads/" + req.file.filename });
   });
 });
@@ -588,7 +632,7 @@ app.post("/upload", (req, res) => {
 // Аватарка: клиент заранее уменьшает фото до 256x256 JPEG, сервер проверяет и сохраняет
 const avatarUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 1024 * 1024 }, // не больше 1 МБ
+  limits: { fileSize: 1024 * 1024, files: 1, parts: 10, fields: 5, fieldNameSize: 100, fieldSize: 1024 }, // не больше 1 МБ
 });
 
 app.post("/avatar", (req, res) => {
@@ -667,11 +711,24 @@ app.post("/register", async (req, res) => {
   }
   if (nameTaken(name)) return res.status(409).json({ error: "Ник занят" });
 
+  // Массовое создание аккаунтов: не больше REG_LIMIT_IP с одного адреса
+  // и REG_LIMIT_TOTAL на сервер за сутки. Проверяем до bcrypt, чтобы не тратить CPU
+  const dayAgo = Date.now() - 24 * 3600e3;
+  const fromIp = db.prepare("SELECT COUNT(*) AS c FROM reg_log WHERE ip = ? AND ts >= ?").get(req.ip, dayAgo).c;
+  if (fromIp >= REG_LIMIT_IP) {
+    return res.status(429).json({ error: "С этого адреса уже создано слишком много аккаунтов. Попробуйте завтра." });
+  }
+  const total = db.prepare("SELECT COUNT(*) AS c FROM reg_log WHERE ts >= ?").get(dayAgo).c;
+  if (total >= REG_LIMIT_TOTAL) {
+    return res.status(429).json({ error: "Сегодня сервер принял максимум новых аккаунтов. Попробуйте завтра." });
+  }
+
   const hash = await bcrypt.hash(password, 10);
   try {
     const result = db
       .prepare("INSERT INTO users (name, password_hash, created_at) VALUES (?, ?, ?)")
       .run(name, hash, Date.now());
+    db.prepare("INSERT INTO reg_log (ip, ts) VALUES (?, ?)").run(req.ip, Date.now());
     const token = createSession(Number(result.lastInsertRowid));
     notifyAdmins();
     res.json({ token, name });
@@ -984,7 +1041,9 @@ io.on("connection", (socket) => {
     let hash = null;
     if (data?.locked) {
       const pw = String(data?.password ?? "");
-      if (pw.length < 4 || Buffer.byteLength(pw) > 72) return cb({ error: "Пароль канала: от 4 символов, не больше 72 байт" });
+      if (pw.length < MIN_CHANNEL_PASSWORD || Buffer.byteLength(pw) > 72) {
+        return cb({ error: `Пароль канала: от ${MIN_CHANNEL_PASSWORD} символов, не больше 72 байт` });
+      }
       hash = await bcrypt.hash(pw, 10);
     }
     try {
@@ -1150,7 +1209,7 @@ io.on("connection", (socket) => {
       const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
         identity: socket.data.name + "#" + socket.id, // с двух устройств можно сидеть одновременно
         name: socket.data.name,
-        ttl: "6h",
+        ttl: VOICE_TOKEN_TTL,
       });
       at.addGrant({
         roomJoin: true,
@@ -1341,7 +1400,9 @@ io.on("connection", (socket) => {
     let hash = null;
     if (password !== null && password !== undefined && password !== "") {
       const pw = String(password);
-      if (pw.length < 4 || Buffer.byteLength(pw) > 72) return cb({ error: "Пароль канала: от 4 символов, не больше 72 байт" });
+      if (pw.length < MIN_CHANNEL_PASSWORD || Buffer.byteLength(pw) > 72) {
+        return cb({ error: `Пароль канала: от ${MIN_CHANNEL_PASSWORD} символов, не больше 72 байт` });
+      }
       hash = await bcrypt.hash(pw, 10);
     }
     db.prepare("UPDATE channels SET password_hash = ? WHERE id = ?").run(hash, id);
@@ -1649,7 +1710,9 @@ io.on("connection", (socket) => {
   on("admin:setinvite", (code, cb) => {
     if (!isAdminName(socket.data.name)) return cb(NOT_ADMIN);
     code = String(code ?? "").trim();
-    if (code.length < 4 || code.length > 64) return cb({ error: "Код приглашения: от 4 до 64 символов" });
+    if (code.length < MIN_INVITE_CODE || code.length > 64) {
+      return cb({ error: `Код приглашения: от ${MIN_INVITE_CODE} до 64 символов` });
+    }
     setSetting("invite_code", code);
     audit(socket.data.name, "Изменён код приглашения");
     cb({ ok: true, invite: code });
@@ -1716,7 +1779,8 @@ io.on("connection", (socket) => {
   // Удаляет загруженные файлы, которые не прикреплены ни к одному сообщению
   on("admin:cleanfiles", (cb) => {
     if (!isAdminName(socket.data.name)) return cb(NOT_ADMIN);
-    const r = cleanupUploads(0);
+    // Свежие файлы не трогаем: их могут ещё прикреплять к сообщению
+    const r = cleanupUploads(15 * 60e3);
     audit(socket.data.name, "Удалены неиспользуемые файлы", r.count + " шт.");
     cb({ ok: true, ...r });
   });
@@ -1785,8 +1849,16 @@ io.on("connection", (socket) => {
   });
 });
 
+// Старые записи квот и регистраций не нужны: для лимитов хватает суток, храним неделю
+function pruneRateLogs() {
+  const cut = Date.now() - 7 * 24 * 3600e3;
+  db.prepare("DELETE FROM uploads_log WHERE ts < ?").run(cut);
+  db.prepare("DELETE FROM reg_log WHERE ts < ?").run(cut);
+}
+
 // Удаляем загруженные, но так и не прикреплённые к сообщениям файлы (по умолчанию старше суток)
 function cleanupUploads(minAgeMs = 24 * 3600e3) {
+  pruneRateLogs();
   const used = new Set(
     db.prepare("SELECT file_url FROM messages WHERE file_url IS NOT NULL").all().map((r) => path.basename(r.file_url))
   );

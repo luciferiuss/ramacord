@@ -25,6 +25,7 @@ public/voiceclarity/  DFN3 WASM-модель (~17 МБ, lazy; MIT/Apache)
 scripts/setup.mjs     генерация .env и livekit.yaml
 test/                 node:test: шумодав (all.js — входная точка)
 docs/                 INSTALL.md, ADMIN.md
+ИНСТРУКЦИЯ.md         полное руководство: функции, шумодав, админка, лимиты
 uploads/              файлы (UUID-имена) и uploads/avatars/ — в git не входят
 mycord.db*            рабочая БД рядом с кодом — в git не входит
 ```
@@ -46,8 +47,11 @@ livekit-server --dev  # локальный голос: ws://localhost:7880, devk
 
 ## Переменные окружения
 
-`PORT` (3000), `HOST` (127.0.0.1), `NODE_ENV`, `ADMIN_NAME`, `INVITE_CODE`,
-`LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_API_URL`.
+`PORT` (3000), `HOST` (127.0.0.1), `NODE_ENV`, `ADMIN_NAME`, `INVITE_CODE`
+(от 12 символов), `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`,
+`LIVEKIT_API_URL`, `VOICE_TOKEN_TTL` (10m), `UPLOAD_PER_HOUR` (30),
+`UPLOAD_USER_MB` (250), `UPLOAD_TOTAL_MB` (2048), `REG_LIMIT_IP` (3),
+`REG_LIMIT_TOTAL` (20).
 Читаются из `.env` через `npm start`; переменная окружения имеет приоритет.
 С `NODE_ENV=production` сервер завершается, если не заданы `LIVEKIT_*` и
 `INVITE_CODE`.
@@ -78,8 +82,11 @@ livekit-server --dev  # локальный голос: ws://localhost:7880, devk
   флаг `moderator`; действия пишутся в `audit` (последние 1000).
 - Фичи (`FEATURES` в `index.js`, флаги `feat:<id>` в `settings`) по умолчанию
   выключены и переключаются админом на лету.
-- Голос — комнаты LiveKit `voice-<channelId>`, токен на 6 часов; состояние в
-  памяти `voiceMembers`.
+- Голос — комнаты LiveKit `voice-<channelId>`, токен на 10 минут
+  (`VOICE_TOKEN_TTL`); LiveKit сам продлевает его, пока участник в комнате.
+  Короткий срок ограничивает возврат со сохранённым токеном после кика, бана или
+  смены пароля канала (~10 минут вместо 6 часов); состояние в памяти
+  `voiceMembers`.
 - Шумодав клиентский (RNNoise WASM); флаг `ns_pro` включает HPF, гистерезис,
   de-click и ползунок силы (`mic.nsLevel`); в pro-режиме NS и AGC браузера
   выключаются, только когда включён наш шумодав; AEC оставлен.
@@ -89,8 +96,13 @@ livekit-server --dev  # локальный голос: ws://localhost:7880, devk
   `set-attenuation` без пересоздания движка; `.wasm` отдаётся с недельным кэшем.
 - Обратный прокси должен сжимать ответы (`encode zstd gzip` у Caddy): wasm
   ~17 МБ → ~10 МБ.
-- Файлы: `/upload` до 25 МБ и 30 раз в час; аватар — только JPEG до 1 МБ;
-  неиспользованные файлы чистятся каждые 6 часов.
+- Файлы: `/upload` до 25 МБ, 30 в час, 250 МБ в сутки на аккаунт и 2 ГБ на
+  сервер (`UPLOAD_*`); квоты считаются по таблице `uploads_log` в базе, поэтому
+  переживают перезапуск. Аватар — только JPEG до 1 МБ; неиспользованные файлы
+  чистятся каждые 6 часов, свежие 15 минут ручная чистка не трогает.
+- Регистрация: код приглашения от 12 символов, лимит `REG_LIMIT_IP` (3) с одного
+  IP и `REG_LIMIT_TOTAL` (20) на сервер за сутки, счётчик в `reg_log`.
+- Пароль канала — от 8 символов, пароль аккаунта — от 6.
 - Перезапуск сервера из админки — намеренный `process.exit(1)`, чтобы
   systemd/Docker с `on-failure` подняли процесс.
 - БД лежит рядом с кодом (`import.meta.dirname`), а не в CWD. Имя файла
