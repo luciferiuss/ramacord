@@ -79,4 +79,4 @@ console.log("  3. Откройте http://127.0.0.1:3000 и зарегистри
 console.log("     этот аккаунт станет администратором (если ADMIN_NAME пуст).");
 console.log("");
 console.log("Для доступа с других машин нужен HTTPS-прокси перед сервером и");
-console.log("wss:// адрес LiveKit — см. docs/INSTALL.md.");
+console.log("wss:// адрес LiveKit — см. README.md, там пошаговая установка.");
