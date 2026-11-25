@@ -64,7 +64,7 @@ db.exec(`
     action TEXT NOT NULL,
     details TEXT
   );
-  -- Загрузки: кто, когда и сколько байт — по ним считаются квоты
+  -- Загрузки: кто, когда и сколько байт - по ним считаются квоты
   CREATE TABLE IF NOT EXISTS uploads_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -73,7 +73,7 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_uploads_log_ts ON uploads_log(ts);
   CREATE INDEX IF NOT EXISTS idx_uploads_log_user ON uploads_log(user_id, ts);
-  -- Регистрации: адрес и время — чтобы ограничить массовое создание аккаунтов
+  -- Регистрации: адрес и время - чтобы ограничить массовое создание аккаунтов
   CREATE TABLE IF NOT EXISTS reg_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ip TEXT NOT NULL,

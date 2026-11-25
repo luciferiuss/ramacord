@@ -338,7 +338,7 @@ const INVITE_CODE = process.env.INVITE_CODE || "";
 if (!INVITE_CODE) console.warn("ВНИМАНИЕ: INVITE_CODE не задан, регистрация открыта всем");
 
 // ===== Лимиты: загрузки, регистрации, пароли каналов =====
-// Всё можно переопределить переменными окружения, значения по умолчанию — для небольшого сервера
+// Всё можно переопределить переменными окружения, значения по умолчанию - для небольшого сервера
 const UPLOAD_PER_HOUR = Number(process.env.UPLOAD_PER_HOUR) || 30;       // файлов в час с одного аккаунта
 const UPLOAD_USER_MB = Number(process.env.UPLOAD_USER_MB) || 250;        // мегабайт за 24 часа на аккаунт
 const UPLOAD_TOTAL_MB = Number(process.env.UPLOAD_TOTAL_MB) || 2048;     // мегабайт за 24 часа на весь сервер
@@ -351,7 +351,7 @@ const MIN_INVITE_CODE = 12;                                              // ми
 // человек может вернуться со сохранённым токеном: было 6 часов, стало 10 минут.
 const VOICE_TOKEN_TTL = process.env.VOICE_TOKEN_TTL || "10m";
 if (INVITE_CODE && INVITE_CODE.length < MIN_INVITE_CODE) {
-  console.warn(`ВНИМАНИЕ: INVITE_CODE короче ${MIN_INVITE_CODE} символов — его легко подобрать перебором`);
+  console.warn(`ВНИМАНИЕ: INVITE_CODE короче ${MIN_INVITE_CODE} символов - его легко подобрать перебором`);
 }
 
 // В продакшене не стартуем с тестовыми ключами и открытой регистрацией
@@ -477,7 +477,7 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json());
-// DFN-модель: 18 МБ, кэшируем надолго. WASM — на неделю, обвязка — на час.
+// DFN-модель: 18 МБ, кэшируем надолго. WASM - на неделю, обвязка - на час.
 app.use(
   "/voiceclarity",
   express.static(path.join(ROOT, "public", "voiceclarity"), {

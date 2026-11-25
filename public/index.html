@@ -505,7 +505,7 @@
         <div id="vsettings" hidden>
           <label class="togrow"><span>Шумоподавление</span><span class="switch"><input type="checkbox" id="nsToggle"><i></i></span></label>
           <label class="togrow" id="dfnRow" hidden><span>Усиленное (DeepFilterNet3)</span><span class="switch"><input type="checkbox" id="dfnToggle"><i></i></span></label>
-          <div class="hint" id="dfnHint" hidden>Модель (~18 МБ) лежит на нашем сервере. Если появятся задержки — выключите режим; при сбое вернёмся на обычное шумоподавление.</div>
+          <div class="hint" id="dfnHint" hidden>Модель (~18 МБ) лежит на нашем сервере. Если появятся задержки - выключите режим; при сбое вернёмся на обычное шумоподавление.</div>
           <div id="nsLevelRow" hidden>
             <div class="slabel"><span>Сила шумоподавления</span><b id="nsLevelVal">50%</b></div>
             <input type="range" id="nsLevel" min="0" max="100">
@@ -1610,7 +1610,7 @@
 
           const st = Math.max(0, Math.min(1, this.strength));
           const openTh = this.th;
-          const closeTh = this.th * (1 - 0.45 * st);        // сильнее — закрывается раньше
+          const closeTh = this.th * (1 - 0.45 * st);        // сильнее - закрывается раньше
           const floor = Math.pow(10, (-60 * st) / 20);      // 0 дБ ... -60 дБ
           const attack = 1 - Math.exp(-1 / (sampleRate * 0.006)); // 6 мс
           const release = 1 - Math.exp(-1 / (sampleRate * 0.12)); // 120 мс
@@ -1685,7 +1685,7 @@
 
     // ===== Усиленное шумоподавление DeepFilterNet3 (PoC) =====
     // Модель лежит у нас: public/voiceclarity (WASM ~18 МБ с весами).
-    // Грузим только когда пользователь включает режим; при ошибке — RNNoise.
+    // Грузим только когда пользователь включает режим; при ошибке - RNNoise.
     let dfnModulePromise = null;
     function loadDfnModule() {
       if (!dfnModulePromise) {
@@ -1710,7 +1710,7 @@
 
       const onDfnStats = (d) => {
         if (!d || d.type !== "stats" || !mic.dfn || !dfn) return;
-        // >5% underrun-сэмплов за секунду две секунды подряд — считаем, что не тянет
+        // >5% underrun-сэмплов за секунду две секунды подряд - считаем, что не тянет
         if (d.underruns > 2400) {
           badStats++;
           if (badStats >= 2 && !dfnWarned) {
@@ -1811,7 +1811,7 @@
           dfnGain.connect(gate);
           this.set({ vol: mic.vol, th: thRms(mic.th), mute: keys.pttOn && !pttHeld, pro: proMode(), strength: (mic.nsLevel ?? 50) / 100 });
 
-          // DFN3 — 18 МБ: не блокируем вход в голос, догружаем в фоне
+          // DFN3 - 18 МБ: не блокируем вход в голос, догружаем в фоне
           if (mic.ns && mic.dfn && F("ns_dfn")) {
             this.applyMode().catch((e) => console.error("DeepFilterNet3:", e));
           } else {
@@ -3727,7 +3727,7 @@
     function syncNsUi() {
       const dfnOn = F("ns_dfn");
       const pro = F("ns_pro") || (dfnOn && mic.dfn);
-      // Впервые включаем про-режим — даём воротам рабочий порог, иначе они всегда открыты
+      // Впервые включаем про-режим - даём воротам рабочий порог, иначе они всегда открыты
       if (mic.ns && pro && mic.th === 0 && !mic.thSet) {
         mic.th = 20; mic.thSet = true;
         saveMic();
@@ -3741,7 +3741,7 @@
       $("dfnToggle").checked = !!mic.dfn;
       $("nsToggle").checked = !!mic.ns;
       $("nsLevelHint").textContent = dfnOn && mic.dfn
-        ? "Глубина DeepFilterNet3 (≈6–40 дБ). Меняется сразу."
+        ? "Глубина DeepFilterNet3 (≈6-40 дБ). Меняется сразу."
         : "Сильнее давит тихий фон и щелчки, но может задевать тихие окончания слов. Работает вместе с «Чувствительностью».";
       const lvl = Math.round(mic.nsLevel ?? 50);
       $("nsLevelVal").textContent = lvl + "%";
@@ -3774,7 +3774,7 @@
       if (!micProc || !mic.dfn || !mic.ns || !micProc.isDfnReady()) return;
       const ok = micProc.setDfnLevel(mic.nsLevel);
       $("nsLevelHint").textContent = ok
-        ? "Глубина DeepFilterNet3 (≈6–40 дБ). Меняется сразу."
+        ? "Глубина DeepFilterNet3 (≈6-40 дБ). Меняется сразу."
         : "DeepFilterNet3 не запущен, работает обычное шумоподавление.";
     };
     $("nsToggle").onchange = async () => {
